@@ -16,8 +16,8 @@ from app.llm.chat.models import LLMModel
 from app.llm.chat.ollama_chat import OllamaLLMClient
 from app.llm.chat.qwen_chat import QwenLLMClient
 from app.llm.chat.vllm_chat import VLLMLLMClient
+from app.utils.database import get_db
 from app.utils.logger import get_logger
-from config.database import get_db
 
 logger = get_logger("LLMFactory")
 

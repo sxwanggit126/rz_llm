@@ -16,7 +16,7 @@ sys.path.append(project_root)
 
 # 导入路由
 from servers.mmlu_api import router as mmlu_router
-
+from servers.evaluation_api import router as evaluation_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,3 +108,4 @@ async def health_check():
 
 # 包含MMLU路由
 app.include_router(mmlu_router)
+app.include_router(evaluation_router)

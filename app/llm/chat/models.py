@@ -4,7 +4,7 @@ LLM模型映射数据库模型 - 简化版
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from sqlalchemy.sql import func
 
-from config.database import Base
+from app.utils.database import Base
 
 
 class LLMModel(Base):
