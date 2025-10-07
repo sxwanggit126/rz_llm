@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 
 from app.llm.chat.unified_client import unified_llm_client
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from mmlu.downloader import MMLUDownloader
 from mmlu.evaluation_models import (
@@ -148,7 +148,7 @@ class EvaluationService:
         try:
             # 格式化Prompt
             prompt = self.format_prompt(prompt_type, translated_item)
-            messages = [HumanMessage(content=prompt)]
+            messages = [SystemMessage(content=prompt)]
 
             # 调用模型
             response = await self.llm_client.ainvoke(

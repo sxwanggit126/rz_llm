@@ -26,7 +26,7 @@ curl -X GET "http://localhost:8000/evaluation/status/79b03e9f-8d8f-47c9-8fe8-db3
   -H "accept: application/json"
 
 # 获取评估结果（需要替换task_id）
-curl -X GET "http://localhost:8000/evaluation/results/79b03e9f-8d8f-47c9-8fe8-db3ca3a4c9a8/details" \
+curl -X GET "http://localhost:8000/evaluation/results/bb9da152-1a96-4036-aa9a-2d5b00ba0e95" \
   -H "accept: application/json"
 
 # 获取详细评估结果（需要替换task_id）

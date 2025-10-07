@@ -16,7 +16,7 @@ D. {choice_d}
 请直接回答A、B、C或D。"""
 
 # Zero-shot思维链
-zero_shot_cot_prompt = """请根据问题选择最合适的答案，并详细说明你的推理过程。
+zero_shot_cot_prompt = """请根据问题选择最合适的答案，请一步步思考并解决问题。
 
 问题：{question}
 
@@ -29,28 +29,6 @@ D. {choice_d}
 请按以下格式回答：
 分析：[详细的推理过程]
 答案：[A、B、C或D]"""
-
-# Few-shot固定示例
-few_shot_examples = [
-    {
-        "question": "水的化学分子式是什么？",
-        "choices": ["CO2", "H2O", "NaCl", "CH4"],
-        "answer": "B",
-        "explanation": "水是由两个氢原子和一个氧原子组成的化合物"
-    },
-    {
-        "question": "太阳系中最大的行星是？",
-        "choices": ["地球", "木星", "土星", "火星"],
-        "answer": "B",
-        "explanation": "木星是太阳系中质量和体积最大的行星"
-    },
-    {
-        "question": "下列哪个不是编程语言？",
-        "choices": ["Python", "Java", "HTML", "C++"],
-        "answer": "C",
-        "explanation": "HTML是标记语言，不是编程语言"
-    }
-]
 
 few_shot_prompt = """以下是一些示例：
 
