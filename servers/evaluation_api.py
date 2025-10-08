@@ -48,15 +48,15 @@ async def start_evaluation(
     启动评估任务
     """
     try:
-        # 验证学科名称
-        valid_subjects = ["astronomy", "business_ethics"]
-        invalid_subjects = [s for s in request.subjects if s not in valid_subjects]
-
-        if invalid_subjects:
-            raise HTTPException(
-                status_code=400,
-                detail=f"无效的学科名称: {invalid_subjects}. 支持的学科: {valid_subjects}"
-            )
+        # # 验证学科名称
+        # valid_subjects = ["astronomy", "business_ethics"]
+        # invalid_subjects = [s for s in request.subjects if s not in valid_subjects]
+        #
+        # if invalid_subjects:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail=f"无效的学科名称: {invalid_subjects}. 支持的学科: {valid_subjects}"
+        #     )
 
         # 创建评估任务
         task_id = await evaluation_service.create_evaluation_task(
@@ -227,7 +227,8 @@ async def get_available_models():
     return {
         "models": [
             "gpt-4o",
-            "gpt-4.1-nano"
+            "gpt-4.1-nano",
+            "gpt-4.1",
         ]
     }
 

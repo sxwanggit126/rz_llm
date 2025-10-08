@@ -244,39 +244,72 @@ class EvaluationService:
                                 )
                                 all_results.append(result)
 
-                                completed_evaluations += 1
-                                progress = 10.0 + (completed_evaluations / total_evaluations) * 80.0
-
-                                # 每10次评估更新一次状态
-                                if completed_evaluations % 10 == 0:
-                                    await self.storage.update_task_status(
-                                        task_id, EvaluationStatus.RUNNING,
-                                        f"评估进行中 ({completed_evaluations}/{total_evaluations})",
-                                        progress,
-                                        total_evaluations=total_evaluations,
-                                        completed_evaluations=completed_evaluations
-                                    )
-
-                                # 短暂延迟避免API限流
-                                await asyncio.sleep(0.1)
-
                             except Exception as e:
                                 logger.error(f"单项评估失败: {e}")
-                                continue
+                                # 即使失败也要记录一个错误结果，保持计数一致
+                                error_result = EvaluationResult(
+                                    task_id=task_id,
+                                    subject=translated_item.subject,
+                                    model_name=model_name,
+                                    prompt_type=prompt_type,
+                                    question_index=question_index,
+                                    predicted_answer="ERROR",
+                                    correct_answer=chr(65 + translated_item.answer),
+                                    is_correct=False,
+                                    response_content=f"评估失败: {str(e)}",
+                                    evaluation_time=datetime.now()
+                                )
+                                all_results.append(error_result)
+
+                            # 无论成功失败都要更新计数
+                            completed_evaluations += 1
+                            progress = 10.0 + (completed_evaluations / total_evaluations) * 85.0
+
+                            # 修改更新频率：每5次或最后一次都更新状态
+                            if (completed_evaluations % 5 == 0 or
+                                completed_evaluations == total_evaluations):
+                                await self.storage.update_task_status(
+                                    task_id, EvaluationStatus.RUNNING,
+                                    f"评估进行中 ({completed_evaluations}/{total_evaluations})",
+                                    progress,
+                                    total_evaluations=total_evaluations,
+                                    completed_evaluations=completed_evaluations
+                                )
+
+                            # 短暂延迟避免API限流
+                            await asyncio.sleep(0.1)
 
             # 4. 保存评估结果
             await self.storage.save_evaluation_results(task_id, all_results)
+
+            # 更新进度到95%
+            await self.storage.update_task_status(
+                task_id, EvaluationStatus.RUNNING, "计算汇总统计...", 95.0,
+                total_evaluations=total_evaluations,
+                completed_evaluations=completed_evaluations
+            )
 
             # 5. 计算汇总统计
             summaries = self.calculate_summaries(task_id, all_results)
             await self.storage.save_evaluation_summaries(task_id, summaries)
 
-            # 6. 更新任务状态为完成
-            await self.storage.update_task_status(
-                task_id, EvaluationStatus.COMPLETED, "评估完成", 100.0,
-                total_evaluations=total_evaluations,
-                completed_evaluations=completed_evaluations
-            )
+            # 6. 更新任务状态为完成 - 确保最终状态更新
+            final_update_success = False
+            for retry in range(3):  # 重试3次确保状态更新成功
+                try:
+                    await self.storage.update_task_status(
+                        task_id, EvaluationStatus.COMPLETED, "评估完成", 100.0,
+                        total_evaluations=total_evaluations,
+                        completed_evaluations=completed_evaluations
+                    )
+                    final_update_success = True
+                    break
+                except Exception as e:
+                    logger.warning(f"最终状态更新失败 (重试 {retry + 1}/3): {e}")
+                    await asyncio.sleep(1)
+
+            if not final_update_success:
+                logger.error(f"任务 {task_id} 完成但状态更新失败")
 
             logger.info(f"评估任务 {task_id} 完成")
 
@@ -291,9 +324,12 @@ class EvaluationService:
             logger.error(f"评估任务 {task_id} 失败: {e}")
 
             # 更新任务状态为失败
-            await self.storage.update_task_status(
-                task_id, EvaluationStatus.FAILED, f"评估失败: {str(e)}", 0.0
-            )
+            try:
+                await self.storage.update_task_status(
+                    task_id, EvaluationStatus.FAILED, f"评估失败: {str(e)}", 0.0
+                )
+            except Exception as update_error:
+                logger.error(f"更新失败状态也失败了: {update_error}")
 
             raise
 

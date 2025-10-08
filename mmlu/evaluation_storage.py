@@ -1,5 +1,5 @@
 """
-评估结果存储服务
+评估结果存储服务 - 修复Redis缓存问题
 """
 import json
 from datetime import datetime
@@ -67,7 +67,7 @@ class EvaluationStorage:
             total_evaluations: int = 0,
             completed_evaluations: int = 0
     ) -> bool:
-        """更新任务状态"""
+        """更新任务状态 - 修复缓存问题"""
         try:
             filename = f"status_{task_id}.json"
 
@@ -82,6 +82,7 @@ class EvaluationStorage:
                 "updated_at": datetime.now().isoformat()
             }
 
+            # 重要：使用force_refresh=True确保缓存被清除
             s3_key = await self.storage.save_json_data(
                 user_id=self.user_id,
                 data=status_data,
@@ -89,7 +90,10 @@ class EvaluationStorage:
                 sub_dir=self.status_dir
             )
 
-            logger.debug(f"任务状态已更新: {task_id} -> {status.value}")
+            # 关键修复：立即清除相关的JSON缓存
+            await self._clear_status_cache(task_id)
+
+            logger.debug(f"任务状态已更新: {task_id} -> {status.value} ({progress:.1f}%)")
             return True
 
         except Exception as e:
@@ -97,13 +101,15 @@ class EvaluationStorage:
             return False
 
     async def get_task_status(self, task_id: str) -> Optional[TaskStatusResponse]:
-        """获取任务状态"""
+        """获取任务状态 - 强制刷新缓存"""
         try:
             s3_key = f"users/{self.user_id}/{self.status_dir}/status_{task_id}.json"
 
+            # 关键修复：始终使用force_refresh=True获取最新状态
             status_data = await self.storage.load_json_data(
                 user_id=self.user_id,
-                s3_key=s3_key
+                s3_key=s3_key,
+                force_refresh=True  # 强制从S3获取最新数据
             )
 
             if not status_data:
@@ -114,6 +120,26 @@ class EvaluationStorage:
         except Exception as e:
             logger.error(f"获取任务状态失败: {e}")
             return None
+
+    async def _clear_status_cache(self, task_id: str):
+        """清除状态相关的缓存"""
+        try:
+            # 构建状态文件的S3键
+            s3_key = f"users/{self.user_id}/{self.status_dir}/status_{task_id}.json"
+
+            # 清除JSON解析缓存
+            json_cache_key = f"s3_browser:json_parsed:{self.user_id}:{s3_key}"
+            await self.storage.cache.delete(json_cache_key)
+
+            # 清除文件内容缓存
+            await self.storage.cache.delete(
+                self.storage.cache._make_user_key(self.user_id, "file_content", s3_key)
+            )
+
+            logger.debug(f"已清除任务 {task_id} 的状态缓存")
+
+        except Exception as e:
+            logger.error(f"清除状态缓存失败: {task_id}, 错误: {e}")
 
     async def save_translated_data(
             self,
@@ -301,7 +327,7 @@ class EvaluationStorage:
             return None
 
     async def list_evaluation_tasks(self) -> List[Dict[str, Any]]:
-        """列出所有评估任务"""
+        """列出所有评估任务 - 修复状态同步问题"""
         try:
             files = await self.storage.list_user_files_with_details(
                 user_id=self.user_id,
@@ -311,7 +337,7 @@ class EvaluationStorage:
             tasks = []
             for file_info in files:
                 if file_info['type'] == 'file' and file_info['name'].startswith('task_'):
-                    # 加载任务信息
+                    # 加载任务基本信息
                     s3_key = file_info['full_path']
                     task_data = await self.storage.load_json_data(
                         user_id=self.user_id,
@@ -319,10 +345,31 @@ class EvaluationStorage:
                     )
 
                     if task_data:
+                        task_id = task_data.get('task_id')
+                        if task_id:
+                            # 关键修复：获取最新的状态信息
+                            try:
+                                latest_status = await self.get_task_status(task_id)
+                                if latest_status:
+                                    # 用最新状态覆盖任务数据中的状态
+                                    task_data['status'] = latest_status.status
+                                    task_data['progress'] = latest_status.progress
+                                    task_data['message'] = latest_status.message
+                                    task_data['updated_at'] = latest_status.updated_at
+                                    task_data['total_evaluations'] = latest_status.total_evaluations
+                                    task_data['completed_evaluations'] = latest_status.completed_evaluations
+                                    logger.debug(f"任务 {task_id} 状态已同步: {latest_status.status}")
+                                else:
+                                    logger.warning(f"任务 {task_id} 无法获取最新状态，使用原始状态")
+                            except Exception as e:
+                                logger.error(f"获取任务 {task_id} 最新状态失败: {e}")
+                                # 即使获取最新状态失败，也保留原始任务信息
+
                         tasks.append(task_data)
 
             # 按创建时间倒序排列
             tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            logger.info(f"已加载 {len(tasks)} 个评估任务，状态已同步")
             return tasks
 
         except Exception as e:

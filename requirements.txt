@@ -46,3 +46,4 @@ langchain-ollama
 werkzeug
 json-repair
 datasets
+plotly
